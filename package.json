@@ -1,6 +1,6 @@
 {
   "name": "download-cached",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Download file with cache so that it can be re-downloaded from cache later",
   "main": "index.js",
   "scripts": {
@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/ikatun/download-cached#readme",
   "dependencies": {
-    "mkdir-promise": "^1.0.0",
+    "mkdirp-promise": "^5.0.1",
     "uuid": "^3.1.0"
   }
 }

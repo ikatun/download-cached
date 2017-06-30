@@ -2,7 +2,7 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
 const uuid = require('uuid/v1');
-const mkdirp = require('mkdir-promise');
+const mkdirp = require('mkdirp-promise');
 
 function readStreamToPromise(readStream) {
   return new Promise((resolve, reject) => {
@@ -105,7 +105,7 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
       fs.unlink(filePath, err => err && err.code !== 'ENOENT' ? reject(err) : resolve());
     });
   };
-  
+
   return download;
 }
 
