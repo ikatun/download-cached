@@ -1,0 +1,33 @@
+{
+  "name": "download-cached",
+  "version": "1.0.0",
+  "description": "Download file with cache so that it can be re-downloaded from cache later",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ikatun/download-cached.git"
+  },
+  "keywords": [
+    "download",
+    "file",
+    "cache",
+    "stream",
+    "fetch",
+    "request",
+    "url",
+    "stream"
+  ],
+  "author": "ikatun",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ikatun/download-cached/issues"
+  },
+  "homepage": "https://github.com/ikatun/download-cached#readme",
+  "dependencies": {
+    "mkdir-promise": "^1.0.0",
+    "uuid": "^3.1.0"
+  }
+}
