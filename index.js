@@ -84,13 +84,6 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
     return networkStream;
   });
   
-  const clear = url => {
-    const filePath = getCachedFilePath(cacheDirectory, url);
-    return new Promise((resolve, reject) => {
-      fs.unlink(filePath, err => err && err.code !== 'ENOENT' ? reject(err) : resolve());
-    });
-  };
-
   const download = url => {
     const downloadPromise = downloadToStream(url);
     
@@ -106,6 +99,13 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
     return downloadPromise;
   }
 
+  download.clear = url => {
+    const filePath = getCachedFilePath(cacheDirectory, url);
+    return new Promise((resolve, reject) => {
+      fs.unlink(filePath, err => err && err.code !== 'ENOENT' ? reject(err) : resolve());
+    });
+  };
+  
   return download;
 }
 
