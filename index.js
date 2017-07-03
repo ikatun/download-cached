@@ -80,28 +80,46 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
   const pendingCacheDirectory = path.join(cacheDirectory, 'pending');
   const createCacheDirPromise = mkdirp(pendingCacheDirectory);
 
-  const download = url => mkdirp(pendingCacheDirectory).then(() => {
+  const download = (url, opts) => mkdirp(pendingCacheDirectory).then(() => {
+    opts = opts || {};
     const cachedFilePath = getCachedFilePath(cacheDirectory, url);
     // if file is already cached, return stream from cache
-    return openFsReadStreamWithSize(cachedFilePath);
+    if (opts.returnCachedPath) {
+      return asPromise(fs.stat, cachedFilePath).then(() => cachedFilePath);
+    } else {
+      return openFsReadStreamWithSize(cachedFilePath);
+    }
   }).catch(err => {
     if (err.code !== 'ENOENT') {
       return Promise.reject(err);
     }
     return urlToStreamPromise(url);
   }).then(networkStream => {
+    if (typeof networkStream === 'string') {
+      return networkStream;
+    }
     // file is not cached, start downloading into a pending directory
     const pendingFilePath = path.join(pendingCacheDirectory, uuid());
     const pendingWriteStream = fs.createWriteStream(pendingFilePath);
     networkStream.pipe(pendingWriteStream);
-    pendingWriteStream.on('close', () => {
-      // file downloaded, move it from the pending directory to the cache directory
-      fs.rename(pendingFilePath, getCachedFilePath(cacheDirectory, url));
-    });
+    if (opts.onData) {
+      networkStream.on('data', opts.onData);
+    }
     pendingWriteStream.on('error', () => {
       fs.unlink(pendingFilePath, () => {});
     });
-    return networkStream;
+    const cachedFilePath = getCachedFilePath(cacheDirectory, url);
+    if (opts.returnCachedPath) {
+      return promiseEvent(pendingWriteStream, 'close')
+        .then(() => asPromise(fs.rename, pendingFilePath, cachedFilePath))
+        .then(() => cachedFilePath);
+    } else {
+      pendingWriteStream.on('close', () => {
+        // file downloaded, move it from the pending directory to the cache directory
+        fs.rename(pendingFilePath, cachedFilePath);
+      });
+      return networkStream;
+    }
   });
 
   download.clear = url => {
@@ -109,7 +127,12 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
     return asPromise(fs.unlink, filePath).catch(err => err.code === 'ENOENT' ? Promise.resolve() : Promise.reject(err));
   };
 
-  download.toFile = (url, destPath) => download(url).then(stream => writeStreamToFile(stream, destPath));
+  download.toFile = (url, destPath, opts) => download(url, opts).then(stream => writeStreamToFile(stream, destPath));
+  download.toCache = (url, opts) => {
+    opts = opts || {};
+    opts.returnCachedPath = true;
+    return download(url, opts);
+  }
 
   return download;
 }
