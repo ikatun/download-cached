@@ -29,7 +29,7 @@ function httpGet(url) {
         if (res.statusCode !== 200) {
           reject(new Error('Response status code is ' + res.statusCode));
         } else {
-          res.contentLength = res.headers['content-length'] || null;
+          res.contentLength = parseInt(res.headers['content-length']) || null;
           resolve(res);
         }
       }).on('error', err => reject(err));
@@ -39,7 +39,7 @@ function httpGet(url) {
 const fetchGet = fetch => url => fetch(url)
   .then(res => {
     if (res.status === 200) {
-      res.body.contentLength = res.headers.get('content-length') || null;
+      res.body.contentLength = parseInt(res.headers.get('content-length')) || null;
       return res.body;
     } else {
       return Promise.reject(new Error('Response status code is ' + res.status));
@@ -52,7 +52,7 @@ const requestGet = request => url => new Promise((resolve, reject) => {
     if (res.statusCode !== 200) {
       reject(new Error('Response status code is ' + res.statusCode));
     } else {
-      res.contentLength = res.headers['content-length'] || null;
+      res.contentLength = parseInt(res.headers['content-length']) || null;
       res.pause();
       resolve(res);
     }
