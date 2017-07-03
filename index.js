@@ -9,9 +9,9 @@ function getCachedFilePath(cacheDirectory, url) {
   return path.join(cacheDirectory, urlHash);
 }
 
-function asPromise(f, arg) {
+function asPromise(f, ...args) {
   return new Promise((resolve, reject) => {
-    f(arg, (err, res) => err ? reject(err) : resolve(res));
+    f(...args, (err, ...res) => err ? reject(err) : resolve(res.length < 2 ? res[0] : res));
   });
 }
 
@@ -36,33 +36,29 @@ function httpGet(url) {
     });
 }
 
-function fetchGet(url) {
-  return fetch(url)
-    .then(res => {
-      if (res.status === 200) {
-        res.body.contentLength = res.headers.get('content-length') || null;
-        return res.body;
-      } else {
-        return Promise.reject(new Error('Response status code is ' + res.status));
-      }
-    })
-}
+const fetchGet = fetch => url => fetch(url)
+  .then(res => {
+    if (res.status === 200) {
+      res.body.contentLength = res.headers.get('content-length') || null;
+      return res.body;
+    } else {
+      return Promise.reject(new Error('Response status code is ' + res.status));
+    }
+  });
 
-function requestGet(url) {
-  return new Promise((resolve, reject) => {
-    const req = require('request')(url);
-    req.on('response', res => {
-      if (res.statusCode !== 200) {
-        reject(new Error('Response status code is ' + res.statusCode));
-      } else {
-        res.contentLength = res.headers['content-length'] || null;
-        res.pause();
-        resolve(res);
-      }
-    })
-    .on('error', err => reject(err));
+const requestGet = request => url => new Promise((resolve, reject) => {
+  const req = request(url);
+  req.on('response', res => {
+    if (res.statusCode !== 200) {
+      reject(new Error('Response status code is ' + res.statusCode));
+    } else {
+      res.contentLength = res.headers['content-length'] || null;
+      res.pause();
+      resolve(res);
+    }
   })
-}
+  .on('error', err => reject(err));
+});
 
 function writeStreamToFile(srcStream, destPath) {
   const destStream = fs.createWriteStream(destPath);
@@ -70,7 +66,7 @@ function writeStreamToFile(srcStream, destPath) {
   return promiseEvent(destStream, 'close');
 }
 
-function openFsReadStreamWithStats(path) {
+function openFsReadStreamWithSize(path) {
   return Promise.all([
     asPromise(fs.stat, path),
     promiseEvent(fs.createReadStream(path), 'open')
@@ -81,14 +77,13 @@ function openFsReadStreamWithStats(path) {
 }
 
 module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
-
   const pendingCacheDirectory = path.join(cacheDirectory, 'pending');
   const createCacheDirPromise = mkdirp(pendingCacheDirectory);
 
   const download = url => mkdirp(pendingCacheDirectory).then(() => {
     const cachedFilePath = getCachedFilePath(cacheDirectory, url);
     // if file is already cached, return stream from cache
-    return openFsReadStreamWithStats(cachedFilePath);
+    return openFsReadStreamWithSize(cachedFilePath);
   }).catch(err => {
     if (err.code !== 'ENOENT') {
       return Promise.reject(err);
