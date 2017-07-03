@@ -76,6 +76,16 @@ function openFsReadStreamWithSize(path) {
   })
 }
 
+function attachOnDataEvent(stream, onData) {
+  if (onData) {
+    stream.on('data', data => {
+      data.total = stream.contentLength;
+      onData(data);
+    });
+  }
+  return stream;
+}
+
 module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
   const pendingCacheDirectory = path.join(cacheDirectory, 'pending');
   const createCacheDirPromise = mkdirp(pendingCacheDirectory);
@@ -87,7 +97,7 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
     if (opts.returnCachedPath) {
       return asPromise(fs.stat, cachedFilePath).then(() => cachedFilePath);
     } else {
-      return openFsReadStreamWithSize(cachedFilePath);
+      return openFsReadStreamWithSize(cachedFilePath).then(stream => (attachOnDataEvent, opts.onData));
     }
   }).catch(err => {
     if (err.code !== 'ENOENT') {
@@ -102,9 +112,7 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
     const pendingFilePath = path.join(pendingCacheDirectory, uuid());
     const pendingWriteStream = fs.createWriteStream(pendingFilePath);
     networkStream.pipe(pendingWriteStream);
-    if (opts.onData) {
-      networkStream.on('data', opts.onData);
-    }
+    attachOnDataEvent(networkStream, opts.onData);
     pendingWriteStream.on('error', () => {
       fs.unlink(pendingFilePath, () => {});
     });
