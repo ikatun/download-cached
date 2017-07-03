@@ -82,6 +82,7 @@ function attachOnDataEvent(stream, onData) {
       data.total = stream.contentLength;
       onData(data);
     });
+    stream.on('end', () => onData(null));
   }
   return stream;
 }
@@ -97,7 +98,7 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
     if (opts.returnCachedPath) {
       return asPromise(fs.stat, cachedFilePath).then(() => cachedFilePath);
     } else {
-      return openFsReadStreamWithSize(cachedFilePath).then(stream => (attachOnDataEvent, opts.onData));
+      return openFsReadStreamWithSize(cachedFilePath).then(stream => attachOnDataEvent(stream, opts.onData));
     }
   }).catch(err => {
     if (err.code !== 'ENOENT') {

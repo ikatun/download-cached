@@ -1,6 +1,6 @@
 {
   "name": "download-cached",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Download file with cache so that it can be re-downloaded from cache later",
   "main": "index.js",
   "scripts": {
