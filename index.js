@@ -4,16 +4,22 @@ const fs = require('fs');
 const uuid = require('uuid/v1');
 const mkdirp = require('mkdirp-promise');
 
-function readStreamToPromise(readStream) {
-  return new Promise((resolve, reject) => {
-    readStream.on('error', err => reject(err));
-    readStream.on('open', () => resolve(readStream));
-  });
-}
-
 function getCachedFilePath(cacheDirectory, url) {
   const urlHash = crypto.createHash('md5').update(url).digest('hex');
   return path.join(cacheDirectory, urlHash);
+}
+
+function asPromise(f, arg) {
+  return new Promise((resolve, reject) => {
+    f(arg, (err, res) => err ? reject(err) : resolve(res));
+  });
+}
+
+function promiseEvent(emitter, event) {
+  return new Promise((resolve, reject) => {
+    emitter.on(event, res => resolve(emitter));
+    emitter.on('error', err => reject(err));
+  });
 }
 
 function httpGet(url) {
@@ -23,16 +29,18 @@ function httpGet(url) {
         if (res.statusCode !== 200) {
           reject(new Error('Response status code is ' + res.statusCode));
         } else {
+          res.contentLength = res.headers['content-length'] || null;
           resolve(res);
         }
       }).on('error', err => reject(err));
-    })
+    });
 }
 
 function fetchGet(url) {
   return fetch(url)
     .then(res => {
       if (res.status === 200) {
+        res.body.contentLength = res.headers.get('content-length') || null;
         return res.body;
       } else {
         return Promise.reject(new Error('Response status code is ' + res.status));
@@ -47,6 +55,7 @@ function requestGet(url) {
       if (res.statusCode !== 200) {
         reject(new Error('Response status code is ' + res.statusCode));
       } else {
+        res.contentLength = res.headers['content-length'] || null;
         res.pause();
         resolve(res);
       }
@@ -55,15 +64,31 @@ function requestGet(url) {
   })
 }
 
+function writeStreamToFile(srcStream, destPath) {
+  const destStream = fs.createWriteStream(destPath);
+  srcStream.pipe(destStream);
+  return promiseEvent(destStream, 'close');
+}
+
+function openFsReadStreamWithStats(path) {
+  return Promise.all([
+    asPromise(fs.stat, path),
+    promiseEvent(fs.createReadStream(path), 'open')
+  ]).then(([stats, readStream]) => {
+    readStream.contentLength = stats.size;
+    return readStream;
+  })
+}
+
 module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
 
   const pendingCacheDirectory = path.join(cacheDirectory, 'pending');
   const createCacheDirPromise = mkdirp(pendingCacheDirectory);
 
-  const downloadToStream = url => mkdirp(pendingCacheDirectory).then(() => {
-    const cachedFilePath = getCachedFilePath(cacheDirectory, url)
+  const download = url => mkdirp(pendingCacheDirectory).then(() => {
+    const cachedFilePath = getCachedFilePath(cacheDirectory, url);
     // if file is already cached, return stream from cache
-    return readStreamToPromise(fs.createReadStream(cachedFilePath));
+    return openFsReadStreamWithStats(cachedFilePath);
   }).catch(err => {
     if (err.code !== 'ENOENT') {
       return Promise.reject(err);
@@ -83,28 +108,13 @@ module.exports = (cacheDirectory, urlToStreamPromise = httpGet) => {
     });
     return networkStream;
   });
-  
-  const download = url => {
-    const downloadPromise = downloadToStream(url);
-    
-    downloadPromise.toFile = destPath => downloadPromise.then(sourceStream => {
-      const destStream = fs.createWriteStream(destPath);
-      sourceStream.pipe(destStream);
-      return new Promise((resolve, reject) => {
-        destStream.on('close', () => resolve());
-        destStream.on('error', err => reject(err));
-      });
-    });
-
-    return downloadPromise;
-  }
 
   download.clear = url => {
     const filePath = getCachedFilePath(cacheDirectory, url);
-    return new Promise((resolve, reject) => {
-      fs.unlink(filePath, err => err && err.code !== 'ENOENT' ? reject(err) : resolve());
-    });
+    return asPromise(fs.unlink, filePath).catch(err => err.code === 'ENOENT' ? Promise.resolve() : Promise.reject(err));
   };
+
+  download.toFile = (url, destPath) => download(url).then(stream => writeStreamToFile(stream, destPath));
 
   return download;
 }
